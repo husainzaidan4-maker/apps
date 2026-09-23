@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Automasi Dokumen Weighing</title>
+    
+    <!-- Load PDF.js and PDF-lib for client-side processing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #334ec2;
+            --primary-hover: #263b96;
+            --bg-color: #ffffff;
+            --text-main: #333333;
+            --text-muted: #666666;
+            --border: #e0e0e0;
+            --error: #d32f2f;
+            --success-bg: #e8f5e9;
+            --error-bg: #ffebee;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f5f7fa;
+            color: var(--text-main);
+            line-height: 1.5;
+        }
+
+        header {
+            background-color: var(--primary);
+            color: white;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        main {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .card {
+            background-color: var(--bg-color);
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border);
+        }
+
+        /* Upload Area */
+        .upload-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            border: 2px dashed var(--primary);
+            padding: 3rem;
+            border-radius: 8px;
+            background-color: #f9faff;
+            transition: all 0.2s;
+        }
+
+        .upload-area:hover {
+            background-color: #f0f3ff;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+            height: 100%;
+        }
+
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 500;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn:disabled {
+            background-color: #a0aabf;
+            cursor: not-allowed;
+        }
+
+        #file-name {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        /* Status Area */
+        #status-area {
+            text-align: center;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            display: none;
+            font-weight: 500;
+        }
+
+        .status-loading {
+            background-color: #e3f2fd;
+            color: #1976d2;
+            border: 1px solid #bbdefb;
+        }
+
+        .status-error {
+            background-color: var(--error-bg);
+            color: var(--error);
+            border: 1px solid #ffcdd2;
+        }
+
+        /* Results Area */
+        #result-area {
+            display: none;
+            grid-template-columns: 3fr 2fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        @media (max-width: 768px) {
+            #result-area {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* PDF Preview */
+        .pdf-preview {
+            width: 100%;
+            height: 700px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background-color: #e9e9e9;
+        }
+
+        /* Stats Panel */
+        .stats-panel {
+            background-color: white;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 1.5rem;
+        }
+
+        .stats-panel h3 {
+            margin-bottom: 1.5rem;
+            color: var(--primary);
+            font-size: 1.25rem;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 0.5rem;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #f5f5f5;
+            padding-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .stat-value {
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .conclusion-box {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-left: 4px solid var(--primary);
+            border-radius: 0 4px 4px 0;
+        }
+
+        .conclusion-title {
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .conclusion-reason {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .action-area {
+            margin-top: 2rem;
+            text-align: right;
+        }
+
+        .action-area .btn {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="weighing-engine.js"></script>
+<script src="pdf-engine.js"></script>
+    <header>
+        <h1>Sistem Automasi Dokumen Weighing</h1>
+    </header>
+
+    <main>
+        <!-- Upload Section -->
+        <div class="card" id="upload-section">
+            <div class="upload-area">
+                <div class="file-input-wrapper">
+                    <button class="btn" style="background-color: white; color: var(--primary); border: 1px solid var(--primary);">Pilih Dokumen PDF</button>
+                    <input type="file" id="pdf-upload" accept="application/pdf">
+                </div>
+                <div id="file-name">Belum ada file yang dipilih</div>
+                <button class="btn" id="btn-process" disabled>Proses PDF</button>
+            </div>
+        </div>
+
+        <!-- Status / Message Area -->
+        <div id="status-area"></div>
+
+        <!-- Result Section (2 Columns) -->
+        <div id="result-area">
+            <!-- Left: PDF Preview -->
+            <div>
+                <iframe id="pdf-preview-frame" class="pdf-preview" src=""></iframe>
+            </div>
+
+            <!-- Right: Results Data -->
+            <div class="stats-panel">
+                <h3>Hasil Pengolahan</h3>
+                
+                <div class="stat-row">
+                    <span class="stat-label">Berat Terendah</span>
+                    <span class="stat-value" id="val-min-weight">-</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Berat MB Terbesar</span>
+                    <span class="stat-value" id="val-max-weight">-</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Berat Karton</span>
+                    <span class="stat-value" id="val-carton-weight">-</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Berat Batas Verifikasi</span>
+                    <span class="stat-value" id="val-verif-limit">-</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Jumlah Reference</span>
+                    <span class="stat-value" id="val-ref-count">-</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Jumlah Group</span>
+                    <span class="stat-value" id="val-group-count">-</span>
+                </div>
+
+                <div class="conclusion-box">
+                    <div class="conclusion-title" id="val-conclusion">-</div>
+                    <div class="conclusion-reason" id="val-conclusion-reason">-</div>
+                </div>
+
+                <div class="action-area">
+                    <button class="btn" id="btn-download">Download PDF</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Scripts akan diload di sini -->
+    <script src="weighing-engine.js"></script>
+    <script src="pdf-engine.js"></script>
+    
+    <script>
+        // UI Interaction Logic
+        const pdfInput = document.getElementById('pdf-upload');
+        const fileNameDisplay = document.getElementById('file-name');
+        const btnProcess = document.getElementById('btn-process');
+        const statusArea = document.getElementById('status-area');
+        const resultArea = document.getElementById('result-area');
+        const pdfFrame = document.getElementById('pdf-preview-frame');
+        const btnDownload = document.getElementById('btn-download');
+
+        let currentPdfBlob = null;
+        let currentBlobUrl = null;
+        let selectedFile = null;
+
+        // Cleanup Blob URL function
+        function cleanupBlob() {
+            if (currentBlobUrl) {
+                URL.revokeObjectURL(currentBlobUrl);
+                currentBlobUrl = null;
+            }
+            currentPdfBlob = null;
+        }
+
+        // Handle File Selection
+        pdfInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && file.type === 'application/pdf') {
+                selectedFile = file;
+                fileNameDisplay.textContent = file.name;
+                btnProcess.disabled = false;
+                
+                // Reset states
+                resultArea.style.display = 'none';
+                statusArea.style.display = 'none';
+                pdfFrame.src = '';
+                cleanupBlob();
+            } else {
+                selectedFile = null;
+                fileNameDisplay.textContent = 'Belum ada file yang dipilih (Pastikan format PDF)';
+                btnProcess.disabled = true;
+            }
+        });
+
+        // Show Status Message
+        function showStatus(message, isError = false) {
+            statusArea.textContent = message;
+            statusArea.style.display = 'block';
+            statusArea.className = isError ? 'status-error' : 'status-loading';
+        }
+
+        // Process Button Click
+        btnProcess.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            showStatus("Memproses dokumen weighing...");
+            btnProcess.disabled = true;
+            resultArea.style.display = 'none';
+            cleanupBlob();
+
+            try {
+                // Call main function from pdf-engine.js (will be implemented next)
+                // Expected to return { resultData: Object, pdfBlob: Blob }
+                if (typeof processWeighingDocument !== 'function') {
+                    throw new Error("Sistem belum lengkap. (pdf-engine.js atau weighing-engine.js belum terhubung)");
+                }
+
+                const response = await processWeighingDocument(selectedFile);
+                
+                // Update UI with results
+                updateResultsUI(response.resultData);
+
+                // Setup PDF Preview
+                currentPdfBlob = response.pdfBlob;
+                currentBlobUrl = URL.createObjectURL(currentPdfBlob);
+                pdfFrame.src = currentBlobUrl;
+
+                statusArea.style.display = 'none';
+                resultArea.style.display = 'grid';
+
+            } catch (error) {
+                console.error(error);
+                showStatus(`Gagal memproses dokumen: ${error.message}`, true);
+            } finally {
+                btnProcess.disabled = false;
+            }
+        });
+
+        // Update Results UI
+        function updateResultsUI(data) {
+            document.getElementById('val-min-weight').textContent = `${data.minWeight} KG`;
+            document.getElementById('val-max-weight').textContent = `${data.maxWeight} KG`;
+            document.getElementById('val-carton-weight').textContent = `${data.cartonWeight} KG`;
+            
+            // Format Limit with Formula
+            document.getElementById('val-verif-limit').textContent = 
+                `${data.verificationLimit} KG (${data.verificationFormula})`;
+                
+            document.getElementById('val-ref-count').textContent = data.references.length;
+            document.getElementById('val-group-count').textContent = data.groups.length;
+            
+            document.getElementById('val-conclusion').textContent = data.conclusion;
+            document.getElementById('val-conclusion').style.color = 
+                data.conclusion === 'DILAKUKAN VERIFIKASI' ? 'var(--error)' : 'var(--primary)';
+            document.getElementById('val-conclusion-reason').textContent = data.conclusionReason;
+        }
+
+        // Handle Download Action
+        btnDownload.addEventListener('click', () => {
+            if (!currentBlobUrl || !selectedFile) return;
+
+            const a = document.createElement('a');
+            a.href = currentBlobUrl;
+            
+            // Generate output filename
+            const originalName = selectedFile.name.replace('.pdf', '');
+            a.download = `${originalName}_PROCESSED.pdf`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', cleanupBlob);
+    </script>
+</body>
+</html>
